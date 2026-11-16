@@ -1,0 +1,36 @@
+## RansomWatch - auditd rules for the ProManager lab
+## Install : sudo cp ransomwatch.rules /etc/audit/rules.d/50-ransomwatch.rules
+##           sudo augenrules --load      (or: sudo auditctl -R ransomwatch.rules)
+## Adapt LAB_ROOT below (/opt/lab/ProManager) to where the ransomware repo lives.
+## These rules ADD to the existing policy: no "-D" (flush) on purpose.
+
+## --- 1. Protected directory: every write / attribute change ------------------
+## ProManager reads, writes "<file>.enc" and drops "RANÇON.txt" in TP/Projet.
+## PATH records (nametype=CREATE/DELETE) feed the Sigma auditd rule.
+-w /opt/lab/ProManager/TP/Projet -p wa -k rw_protected_write
+
+## Parent folder: catches TP/Projet_temp.zip (libzip, T1560.002) and the
+## ransomware's own log file TP/ransomware.log.
+-w /opt/lab/ProManager/TP -p wa -k rw_tp_write
+
+## --- 2. Deletions and renames inside the protected directory ---------------------
+## remove() in encrypt_file() becomes unlink/unlinkat: a burst of these with the
+## same pid is the "originals deleted" half of RW-004 / RW-005.
+-a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat,renameat2 -F dir=/opt/lab/ProManager/TP/Projet -F success=1 -k rw_delete
+-a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F dir=/opt/lab/ProManager/TP/Projet -F success=1 -k rw_delete
+
+## --- 3. Outbound connections (key exfiltration to TCP/4242) ----------------------
+## auditd CANNOT filter on the destination port: connect() receives a pointer
+## to a sockaddr structure and -F only compares scalar syscall arguments.
+## So we log every connect() made by interactive users (auid >= 1000) and filter
+## the port afterwards on the SOCKADDR record:
+##   sudo ausearch -k net_connect -i | grep -B4 'lport=4242'
+##   -> saddr={ saddr_fam=inet laddr=127.0.0.1 lport=4242 }
+## Volume can be high on a desktop VM: in production prefer an EDR, eBPF
+## (Falco/Tetragon) or Sysmon for Linux, and keep this rule for the lab.
+-a always,exit -F arch=b64 -S connect -F auid>=1000 -F auid!=unset -k net_connect
+-a always,exit -F arch=b32 -S socketcall -F a0=3 -F auid>=1000 -F auid!=unset -k net_connect
+
+## --- 4. Execution of binaries from the lab tree ------------------------------------
+## Who launched ./TP/ransomware (or anything else compiled in the repo)?
+-a always,exit -F arch=b64 -S execve -F dir=/opt/lab/ProManager/TP -k rw_exec

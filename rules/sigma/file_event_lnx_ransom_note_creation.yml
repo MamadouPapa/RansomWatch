@@ -1,0 +1,40 @@
+title: Ransom Note File Created - ProManager And Common Families
+id: 9041a92c-f571-432f-976b-16ac2effcf18
+status: experimental
+description: |
+    Detects the creation of a file whose name matches a ransom note, including
+    "RANÇON.txt" dropped by the ProManager educational ransomware in the
+    encrypted directory (and its accent-less spelling). Counterpart of
+    RansomWatch detector rule RW-003.
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1486/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection_promanager:
+        TargetFilename|endswith:
+            - '/RANÇON.txt'
+            - '/RANCON.txt'
+    selection_generic:
+        TargetFilename|contains:
+            - 'RANSOM'
+            - 'DECRYPT'
+            - 'HOW_TO_RECOVER'
+            - 'HOW_TO_RESTORE'
+            - 'RESTORE_MY_FILES'
+            - 'YOUR_FILES_ARE_ENCRYPTED'
+            - '!README!'
+    selection_readme:
+        TargetFilename|endswith: '/_readme.txt'
+    condition: 1 of selection_*
+falsepositives:
+    - Security tooling, decryptor utilities or documentation legitimately named "*decrypt*"
+    - Malware analysis or CTF material stored on the host
+level: high

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+# Runtime output of the detector
+ransomwatch-incident.jsonl
+alerts*.jsonl
+*.log
+# Lab artefacts that must never be committed
+*.enc
+*_temp.zip
+.DS_Store

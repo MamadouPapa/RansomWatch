@@ -1,0 +1,38 @@
+title: Outbound Connection To TCP 4242 From Non-Allowlisted Process
+id: d4137029-a053-414d-adfe-92e4a83c6e0a
+status: experimental
+description: |
+    Detects a process initiating a TCP connection to port 4242, the port used
+    by ProManager to send its AES-256 key and IV (raw TCP, no application
+    protocol) to "serveur_pardon". Any process not explicitly allowlisted is
+    suspicious. Requires a network connection telemetry source such as Sysmon
+    for Linux (Event ID 3) or an EDR. For auditd, see the connect rule in
+    auditd/ransomwatch.rules (key net_connect).
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1041/
+    - https://attack.mitre.org/techniques/T1095/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.exfiltration
+    - attack.t1041
+    - attack.command-and-control
+    - attack.t1095
+logsource:
+    product: linux
+    category: network_connection
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationPort: 4242
+    filter_main_allowlist:
+        # Replace with the binaries that are expected to use TCP/4242 in your
+        # environment. Nothing is expected to use it in the lab.
+        Image:
+            - '/opt/approved/bin/agent-4242'
+    condition: selection and not 1 of filter_main_*
+falsepositives:
+    - Applications legitimately configured on TCP/4242 (add them to the allowlist)
+    - The lab recovery client "client_decrypt" (also contacts port 4242)
+level: high

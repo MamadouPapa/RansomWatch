@@ -1,0 +1,35 @@
+title: Ransom Note File Created - Auditd PATH Record
+id: afafb253-b5cb-4018-bb22-4f8687c0c065
+status: experimental
+description: |
+    Auditd variant of the ransom note rule. Requires a watch on the protected
+    directory (see auditd/ransomwatch.rules, key rw_protected_write); the PATH
+    record with nametype CREATE carries the new file name (e.g. "RANÇON.txt"
+    written by ProManager in TP/Projet).
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1486/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection_type:
+        type: 'PATH'
+        nametype: 'CREATE'
+    selection_name:
+        name|contains:
+            - 'RANÇON'
+            - 'RANCON'
+            - 'RANSOM'
+            - 'DECRYPT'
+            - 'HOW_TO_RECOVER'
+            - '!README!'
+    condition: all of selection_*
+falsepositives:
+    - Legitimate files containing "decrypt" in their name (tools, docs)
+level: high

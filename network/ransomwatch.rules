@@ -1,0 +1,25 @@
+# RansomWatch - Suricata rules (Snort 2.9 compatible syntax) for ProManager.
+# ProManager connects to 127.0.0.1:4242 and calls write() twice:
+#   write(sock, key, 32)  -> AES-256 key
+#   write(sock, iv, 16)   -> CBC IV
+# so the exfiltration is either one 48-byte segment (if coalesced) or a 32-byte
+# segment followed by a 16-byte segment. The destination is hard-coded to
+# loopback: run the IDS on "lo" (suricata -i lo -k none) inside the VM, a
+# network sensor on the wire will never see this traffic.
+# "any" is used instead of $HOME_NET so that 127.0.0.1 always matches.
+# SIDs 1042420x: local range.
+
+# 1. Any new TCP session towards 4242 (informational, high volume tolerant)
+alert tcp any any -> any 4242 (msg:"RANSOMWATCH TCP/4242 session opened (ProManager C2 port)"; flow:to_server; flags:S; threshold:type limit, track by_src, count 1, seconds 60; classtype:policy-violation; reference:url,github.com/MamadouPapa/ProManager-Ransomware; metadata:mitre_technique_id T1095, mitre_tactic_id TA0011; sid:10424201; rev:1;)
+
+# 2. Key + IV in a single 48-byte segment
+alert tcp any any -> any 4242 (msg:"RANSOMWATCH ProManager key+IV exfiltration (48-byte payload to TCP/4242)"; flow:to_server,established; dsize:48; classtype:trojan-activity; reference:url,github.com/MamadouPapa/ProManager-Ransomware; metadata:mitre_technique_id T1041, mitre_tactic_id TA0010; sid:10424202; rev:1;)
+
+# 3a. First segment = 32-byte key: remember it, no alert yet
+alert tcp any any -> any 4242 (msg:"RANSOMWATCH ProManager 32-byte key segment (state only)"; flow:to_server,established; dsize:32; flowbits:set,rw.promanager.key; flowbits:noalert; sid:10424203; rev:1;)
+
+# 3b. Second segment = 16-byte IV after a 32-byte key in the same flow
+alert tcp any any -> any 4242 (msg:"RANSOMWATCH ProManager key(32)+IV(16) exfiltration in two segments"; flow:to_server,established; dsize:16; flowbits:isset,rw.promanager.key; classtype:trojan-activity; reference:url,github.com/MamadouPapa/ProManager-Ransomware; metadata:mitre_technique_id T1041, mitre_tactic_id TA0010; sid:10424204; rev:1;)
+
+# 4. serveur_pardon releasing the key to client_decrypt (French banner)
+alert tcp any 4242 -> any any (msg:"RANSOMWATCH ProManager server releasing key to victim client"; flow:from_server,established; content:"Vos excuses sont accept"; classtype:trojan-activity; reference:url,github.com/MamadouPapa/ProManager-Ransomware; metadata:mitre_technique_id T1095, mitre_tactic_id TA0011; sid:10424205; rev:1;)

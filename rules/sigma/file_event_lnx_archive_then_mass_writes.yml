@@ -1,0 +1,129 @@
+title: Archive Created By Non-Archiver Process
+id: 7f07c37f-9061-4baf-96f6-e06d0b2d1b91
+name: rw_archive_created_by_non_archiver
+status: experimental
+description: |
+    Base rule (part 1/4). A ZIP archive is created by a process that is not a
+    standard archiving utility, as ProManager does with libzip
+    ("TP/Projet_temp.zip") right before encrypting the directory.
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1560/002/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.collection
+    - attack.t1560.002
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '.zip'
+            - '.7z'
+    filter_main_archivers:
+        Image|endswith:
+            - '/zip'
+            - '/7z'
+            - '/7za'
+            - '/tar'
+            - '/file-roller'
+            - '/ark'
+    condition: selection and not 1 of filter_main_*
+falsepositives:
+    - Applications that export ZIP files through a library (IDEs, office suites, backup agents)
+level: low
+---
+title: Encrypted-Extension File Written
+id: 951c15af-95cd-4e4e-b497-444569b4a962
+name: rw_encrypted_extension_written
+status: experimental
+description: |
+    Base rule (part 2/4). A file with a typical "encrypted" extension is
+    created. ProManager writes "<original>.enc" next to each target file.
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1486/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '.enc'
+            - '.locked'
+            - '.crypt'
+            - '.encrypted'
+    condition: selection
+falsepositives:
+    - Legitimate encryption tools (gpg, openssl enc, age) used by administrators
+level: low
+---
+title: Mass Encrypted-Extension Writes By One Process
+id: fd6b3fcf-345b-4bc9-83a7-750e698609fc
+name: rw_mass_encrypted_writes
+status: experimental
+description: |
+    Correlation (part 3/4). At least 10 "encrypted extension" files created by
+    the same process on the same host within one minute.
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1486/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.impact
+    - attack.t1486
+correlation:
+    type: event_count
+    rules:
+        - rw_encrypted_extension_written
+    group-by:
+        - Image
+        - Computer
+    timespan: 1m
+    condition:
+        gte: 10
+falsepositives:
+    - Bulk encryption jobs run by administrators
+level: medium
+---
+title: Archive Then Mass File Writes By Same Process
+id: 5efcf24c-f757-486a-a4f7-fdd8efb88cff
+status: experimental
+description: |
+    Correlation (part 4/4, best effort). The same process first creates an
+    archive and then writes many encrypted-extension files within 5 minutes:
+    ProManager's "compress_directory() then encrypt_directory()" sequence.
+    Grouping is per process image; Sigma cannot express "same directory"
+    directly, so analysts should confirm that both paths share a parent.
+    Counterpart of RansomWatch rules RW-004 and RW-005.
+references:
+    - https://github.com/MamadouPapa/ProManager-Ransomware
+    - https://attack.mitre.org/techniques/T1560/002/
+    - https://attack.mitre.org/techniques/T1486/
+author: Papa Mamadou Gueye
+date: 2026/11/16
+tags:
+    - attack.collection
+    - attack.t1560.002
+    - attack.impact
+    - attack.t1486
+correlation:
+    type: temporal_ordered
+    rules:
+        - rw_archive_created_by_non_archiver
+        - rw_mass_encrypted_writes
+    group-by:
+        - Image
+        - Computer
+    timespan: 5m
+falsepositives:
+    - Backup software that archives then encrypts its own output
+level: high
